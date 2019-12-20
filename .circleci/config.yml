@@ -17,7 +17,7 @@ jobs:
         make build
     - store_artifacts:
         path: ./bom-observations-exporter
-        destination: bin
+        destination: bom-observations-exporter
 
     - persist_to_workspace:
         root: ./
@@ -30,7 +30,7 @@ jobs:
     - attach_workspace:
         at: ./
     - run: |
-        npm install -g serverless@1.59.3 && \
+        sudo npm install -g serverless@1.59.3 && \
         make deploy-staging
 
   deploy-to-prod:
@@ -39,7 +39,7 @@ jobs:
     - attach_workspace:
         at: /go/src/github.com/fergusstrange
     - run: |
-        npm install -g serverless@1.59.3 && \
+        sudo npm install -g serverless@1.59.3 && \
         make deploy-prod
 
 workflows:
