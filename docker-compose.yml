@@ -1,0 +1,14 @@
+version: "3.7"
+services:
+  elasticsearch:
+    image: elasticsearch:7.1.1
+    environment:
+      discovery.type: single-node
+    restart: on-failure
+    ports:
+      - "9200:9200"
+  kibana:
+    image: kibana:7.1.1
+    restart: on-failure
+    ports:
+      - "5601:5601"

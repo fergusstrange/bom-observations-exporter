@@ -1,0 +1,66 @@
+version: 2.1
+executors:
+  default:
+    docker:
+    - image: circleci/golang:1.13-node-browsers
+    working_directory: /go/src/github.com/fergusstrange/bom-observations-exporter
+    environment:
+      GO111MODULE: "on"
+      CI: "true"
+jobs:
+  build:
+    executor: default
+    steps:
+    - checkout
+    - run: |
+        make test && \
+        make build
+    - store_artifacts:
+        path: ./bom-observations-exporter
+        destination: bin
+
+    - persist_to_workspace:
+        root: ./
+        paths:
+        - "*"
+
+  deploy-to-staging:
+    executor: default
+    steps:
+    - attach_workspace:
+        at: ./
+    - run: |
+        npm install -g serverless@1.59.3 && \
+        make deploy-staging
+
+  deploy-to-prod:
+    executor: default
+    steps:
+    - attach_workspace:
+        at: /go/src/github.com/fergusstrange
+    - run: |
+        npm install -g serverless@1.59.3 && \
+        make deploy-prod
+
+workflows:
+  version: 2
+  build-and-deploy:
+    jobs:
+    - build:
+        context: home-build
+        filters:
+          branches:
+            only:
+            - master
+    - deploy-to-staging:
+        context: home-aws
+        requires:
+        - build
+    - deploy-to-prod-approval:
+        type: approval
+        requires:
+        - deploy-to-staging
+    - deploy-to-prod:
+        context: home-aws
+        requires:
+        - deploy-to-prod-approval

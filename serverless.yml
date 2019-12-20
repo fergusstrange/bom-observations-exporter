@@ -1,0 +1,79 @@
+frameworkVersion: '1.59.3'
+
+service: bom-observations-exporter
+
+custom:
+  stage: ${env:STAGE, "dev"}
+  region: ${env:AWS_REGION, "ap-southeast-2"}
+
+provider:
+  name: aws
+  stage: ${self:custom.stage}
+  runtime: go1.x
+  region: ${self:custom.region}
+  memorySize: 512
+  timeout: 600
+  logRetentionInDays: 14
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - "es:ESHttpPost"
+      Resource: !Join [":", ["arn:aws:es", !Ref "AWS::Region", !Ref "AWS::AccountId", "domain/telemetry-${self:custom.stage}/*"]]
+
+package:
+  exclude:
+    - ./**
+  include:
+    - ./bom-observations-exporter
+
+functions:
+  main:
+    handler: bom-observations-exporter
+    environment:
+      ELASTICSEARCH_URL: https://${cf:bom-observations-exporter-${self:custom.stage}.ElasticsearchURL, "elasticsearch"}
+    events:
+      - schedule:
+          name: 15m
+          rate: rate(15 minutes)
+          enabled: true
+
+resources:
+  Resources:
+    ElasticsearchTelemetry:
+      Type: AWS::Elasticsearch::Domain
+      Properties:
+        DomainName: "telemetry-${self:custom.stage}"
+        ElasticsearchVersion: "7.1"
+        ElasticsearchClusterConfig:
+          DedicatedMasterEnabled: false
+          InstanceCount: "1"
+          ZoneAwarenessEnabled: false
+          InstanceType: "t2.small.elasticsearch"
+        EBSOptions:
+          EBSEnabled: true
+          VolumeSize: 10
+          VolumeType: gp2
+        SnapshotOptions:
+          AutomatedSnapshotStartHour: "4"
+        AccessPolicies:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                AWS: "*"
+              Action:
+                - "es:ESHttpPost"
+                - "es:ESHttpPut"
+                - "es:ESHttpGet"
+                - "es:ESHttpHead"
+                - "es:ESHttpDelete"
+              Resource: !Join [":", ["arn:aws:es", !Ref "AWS::Region", !Ref "AWS::AccountId", "domain/telemetry-${self:custom.stage}*"]]
+              Condition:
+                IpAddress:
+                  aws:SourceIp:
+                    - "124.171.21.193/32"
+        AdvancedOptions:
+          rest.action.multi.allow_explicit_index: true
+  Outputs:
+    ElasticsearchURL:
+      Value: !GetAtt ElasticsearchTelemetry.DomainEndpoint
